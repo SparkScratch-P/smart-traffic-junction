@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Object Detection</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+    }
+    video, canvas {
+      display: block;
+      margin: 10px auto;
+      border: 1px solid black;
+    }
+    #stats {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="stats">
+    <p>Cars: <span id="car-count">0</span></p>
+    <p>Persons: <span id="person-count">0</span></p>
+    <p>Total: <span id="total-count">0</span></p>
+  </div>
+  <video id="video" autoplay playsinline width="640" height="480"></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const carCountElement = document.getElementById('car-count');
+    const personCountElement = document.getElementById('person-count');
+    const totalCountElement = document.getElementById('total-count');
+
+    // Blynk auth token
+    const authToken = 'LpTIYa43VENKHRK0Y0aIJsPDLL5Uu1qq';
+
+    async function setupCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      return new Promise(resolve => {
+        video.onloadedmetadata = () => {
+          resolve(video);
+        };
+      });
+    }
+
+    async function detectObjects() {
+      const model = await cocoSsd.load(); // Load COCO-SSD model
+      await setupCamera();
+      video.play();
+
+      // Set the initial total count to zero in Blynk
+      let previousTotalCount = 0;
+      fetch(`https://blynk.cloud/external/api/update?token=${authToken}&v1=0`)
+        .then(response => {
+          console.log("Initial Blynk update to 0 successful:", response);
+        })
+        .catch(error => {
+          console.error("Error setting initial Blynk value:", error);
+        });
+
+      setInterval(async () => {
+        const predictions = await model.detect(video);
+
+        let carCount = 0;
+        let personCount = 0;
+
+        // Clear previous frame
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Draw current frame
+
+        predictions.forEach(prediction => {
+          const [x, y, width, height] = prediction.bbox;
+          
+          // Draw bounding box
+          ctx.strokeStyle = "red";
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y, width, height);
+
+          // Draw label
+          ctx.fillStyle = "red";
+          ctx.font = "16px Arial";
+          ctx.fillText(
+            `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+            x,
+            y > 10 ? y - 5 : 10
+          );
+
+          // Count vehicles and persons
+          if (["car", "truck", "bus", "motorcycle"].includes(prediction.class)) {
+            carCount++;
+          } else if (prediction.class === "person") {
+            personCount++;
+          }
+        });
+
+        // Update counts on the webpage
+        carCountElement.innerText = carCount;
+        personCountElement.innerText = personCount;
+        const totalCount = carCount + personCount;
+        totalCountElement.innerText = totalCount;
+
+        // Update Blynk V1 if the total count has changed
+        if (totalCount !== previousTotalCount) {
+          previousTotalCount = totalCount;
+          fetch(`https://blynk.cloud/external/api/update?token=${authToken}&v1=${totalCount}`)
+            .then(response => {
+              console.log("Blynk update successful:", response);
+            })
+            .catch(error => {
+              console.error("Error updating Blynk:", error);
+            });
+        }
+      }, 100); // Run detection every 100ms
+    }
+
+    detectObjects();
+  </script>
+</body>
+</html>
