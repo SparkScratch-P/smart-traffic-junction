@@ -6,7 +6,7 @@
 
 ### [Traffic Light Camera Lane 2](https://sparkscratch-p.github.io/smart-traffic-junction/cam/V2)
 
-### [Public Mobile Application](https://sparkscratch-p.github.io/smart-traffic-junction/app/)
+### [Public Mobile Application](https://sparkscratch-p.github.io/smart-traffic-junction/app/index.html)
 
 ## Features of the Traffic Light System Resembling a Real-World Traffic Light at a Crossing
 
